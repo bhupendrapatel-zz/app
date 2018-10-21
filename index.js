@@ -31,7 +31,6 @@ const server = http.createServer(function (req, res) {
     let decoder = new StringDecoder('utf-8');
     let buffer = '';
 
-
     req.on('data', function (data) {
         buffer += decoder.write(data);
     });
@@ -39,11 +38,38 @@ const server = http.createServer(function (req, res) {
     req.on('end', function () {
         buffer += decoder.end();
 
-        // Send the response
-        res.end("Hello World\n");
+        // If route is found then call its handler, else not found handler
+        let choosenHandler = typeof (router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound;
 
-        // Log the request path
-        console.log("Request received with these payload", buffer);
+        // Construct data object to be send to the handler
+        let data = {
+            'trimmedPath': trimmedPath,
+            'queryStringObject': queryStringObject,
+            'method': method,
+            'headers': headers,
+            'payload': buffer
+        };
+
+        // Route the request to the handler speciifed in router
+        choosenHandler(data, function (statusCode, payload) {
+            // Use the Status Code called back from handler, or default it to 200
+            statusCode = typeof (statusCode) == 'number' ? statusCode : 200;
+
+            // Use the payload called back from handler, or default it to empty object
+            payload = typeof (payload) == 'object' ? payload : {};
+
+            // Convert the payload to string
+            var payloadString = JSON.stringify(payload);
+
+            // Return the response
+            res.setHeader('Content-Type', 'application/json');
+            res.writeHead(statusCode);
+            res.end(payloadString);
+
+            // Log the request path
+            console.log("Returning the response: ", statusCode, payloadString);
+
+        });
 
     });
 
@@ -53,3 +79,21 @@ const server = http.createServer(function (req, res) {
 server.listen(3000, function () {
     console.log("The server is listening on port 3000");
 });
+
+// Define a handler
+let handlers = {};
+
+// Sample handler
+handlers.sample = function (data, callback) {
+    callback(200, { 'name': 'sample' })
+};
+
+// Not Found Handler
+handlers.notFound = function (data, callback) {
+    callback(404);
+};
+
+// Define a router
+let router = {
+    'sample': handlers.sample
+};
